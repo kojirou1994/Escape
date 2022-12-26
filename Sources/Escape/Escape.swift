@@ -1,39 +1,50 @@
 public extension StringProtocol {
 
-  func shellEscaped(prefix: String = "", alwaysQuote: Bool = false) -> String {
-    let needQuote: Bool
-    if alwaysQuote {
-      needQuote = true
-    } else {
-      needQuote = !utf8.allSatisfy(\.isShellAllowedCodeUnit)
-    }
+  func escaped(quoter: Character, escapeMap: [Character: String], alwaysQuote: Bool) -> String {
+    assert(["'", "\""].contains(quoter))
 
-    var result = prefix
-    func quote() {
-      if needQuote {
-        result += "'"
-      }
-    }
-
-    quote()
+    var result = ""
 
     forEach { char in
-      switch char {
-      case "'", "\\":
-        result += "\\"
-      default: break
+      if let string = escapeMap[char] {
+        result.append(string)
+        return
       }
       result.append(char)
     }
 
-    quote()
+    let needQuote: Bool
+    if alwaysQuote {
+      needQuote = true
+    } else {
+      needQuote = result != self
+    }
+
+    if needQuote {
+      result.insert(quoter, at: result.startIndex)
+      result.append(quoter)
+    }
 
     return result
   }
 
-  func pythonEscapedRaw() -> String {
-    shellEscaped(prefix: "r", alwaysQuote: true)
+  func simpleShellEscaped() -> String {
+    escaped(quoter: "'", escapeMap: [
+      "'": "'\\''"
+    ], alwaysQuote: utf8.contains{ !$0.isShellAllowedCodeUnit })
   }
+
+  func pythonEscaped() -> String {
+    escaped(quoter: "'", escapeMap: [
+      // ref: https://www.w3schools.com/python/gloss_python_escape_characters.asp
+      "'": "\\'",
+      "\\": "\\\\",
+      "\n": "\\n",
+      "\r": "\\r",
+      "\t": "\\t",
+    ], alwaysQuote: true)
+  }
+
 }
 
 extension UInt8 {
